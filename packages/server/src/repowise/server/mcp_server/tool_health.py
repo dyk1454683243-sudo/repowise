@@ -12,7 +12,10 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from repowise.core.analysis.doc_drift.constants import DETECTION_BASIS
+from repowise.core.analysis.doc_drift.constants import (
+    DETECTION_BASIS,
+    UNAVAILABLE_NO_TABLE,
+)
 from repowise.core.analysis.health.aggregation import module_rollups as _module_rollups
 from repowise.core.analysis.health.churn_complexity import churn_complexity_points
 from repowise.core.analysis.health.counts import (
@@ -2265,7 +2268,7 @@ async def get_health(
                 # written before the drift table existed, and on Postgres a
                 # failed statement poisons the transaction, so without it one
                 # missing table would take every later read in this call down
-                # with it. ``replace_doc_drift_findings_guarded`` guards the
+                # with it. ``replace_doc_drift_guarded`` guards the
                 # write side against the same hazard.
                 async with session.begin_nested():
                     rows = await get_doc_drift_findings(session, repository.id)
@@ -2280,7 +2283,7 @@ async def get_health(
                 # Say the block could not be read rather than serve an empty
                 # list, which would read as a clean bill of health that was
                 # never taken.
-                drift_unavailable = "index_predates_doc_drift"
+                drift_unavailable = UNAVAILABLE_NO_TABLE
             if scoped:
                 drift_rows = [r for r in drift_rows if r.file_path in effective_targets]
 

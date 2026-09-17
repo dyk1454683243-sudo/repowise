@@ -1383,6 +1383,59 @@ class DeadCodeFinding(Base):
     __table_args__ = (Index("ix_dead_code_repo_path", "repository_id", "file_path"),)
 
 
+class DocDriftReference(Base):
+    """One resolved ``(document, file)`` reference - the reverse index.
+
+    Where :class:`DocDriftFinding` stores what a document got *wrong*, this
+    stores what it got right: ``document_path`` names ``target_path`` and the
+    repository still has it. Complements, not two views of one thing: a
+    drifted reference resolves to nothing, so it can never appear here, and no
+    surface may read one as evidence against the other.
+
+    A table, not a graph edge, for :class:`TestCoverageEntry`'s reason - the
+    consumer is a straight lookup keyed by file path. It is stored at all
+    because the process answering "which documents mention this file" holds no
+    ``source_map``: 0.7 ms to serve, 243 ms to re-run the pass, 1,562 ms on a
+    document-heavy tree.
+
+    ``ix_doc_drift_ref_repo_target`` is the hot index, the direction the
+    findings table lacks; the document index serves the scoped rewrite and the
+    prune. Rows are replaced per run under the same ``authoritative_paths`` as
+    findings, so a document a run could not read keeps its rows.
+    """
+
+    __tablename__ = "doc_drift_references"
+    __table_args__ = (
+        UniqueConstraint(
+            "repository_id",
+            "document_path",
+            "kind",
+            "line_number",
+            "target_path",
+            name="uq_doc_drift_reference_site",
+        ),
+        # Reverse index (file -> documents naming it) is the hot path.
+        Index("ix_doc_drift_ref_repo_target", "repository_id", "target_path"),
+        # Forward index (document -> what it names), for the scoped rewrite.
+        Index("ix_doc_drift_ref_repo_doc", "repository_id", "document_path"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    repository_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
+    )
+    #: The document making the reference, which is the file a reader edits.
+    document_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    #: The file it resolved to. Not what the document wrote: a relative link
+    #: resolves against its own directory.
+    target_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    line_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The enclosing heading trail, carried because the reverse view shows it:
+    #: it is how a reader finds the passage rather than just the file.
+    section: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
 class DocDriftFinding(Base):
     """An assertion a document makes that the repository no longer satisfies.
 

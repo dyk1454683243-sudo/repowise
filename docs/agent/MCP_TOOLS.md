@@ -326,7 +326,7 @@ The workhorse tool. Returns docs, symbols, ownership, freshness, and community m
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `targets` | list[string] | Yes | File paths, module names, or symbol IDs. Batch multiple targets in one call. Symbol ids take the same `"path/to/file.py::Name"` form `get_symbol` accepts, with the same `::` / `.` / `/` separator normalisation, so an id from either tool works in the other. |
-| `include` | list[string] | No | Additional data to include: `"full_doc"` (full wiki markdown), `"callers"` (who calls this, symbol targets), `"callees"` (what this calls, symbol targets), `"ownership"` (primary owner, bus factor, contributor count), `"last_change"` (last commit date + author), `"metrics"` (PageRank, betweenness, percentiles), `"community"` (cluster membership + neighbors), `"decisions"` (full decision records; default returns titles only), `"skeleton"` (file targets only; the file with bodies elided: every signature, imports, and the bodies of the most central symbols, token-budgeted; typically ~15% of the full file's tokens). An empty `callers`, `callees` or `used_by` list sits beside a `*_basis` object: the language, how many call edges the index resolved for it, the share of those that are guesses, and a note that unbound call sites are not counted, so an empty list means no resolved edge, not proof of none |
+| `include` | list[string] | No | Additional data to include: `"full_doc"` (full wiki markdown), `"callers"` (who calls this, symbol targets), `"callees"` (what this calls, symbol targets), `"ownership"` (primary owner, bus factor, contributor count), `"last_change"` (last commit date + author), `"metrics"` (PageRank, betweenness, percentiles), `"community"` (cluster membership + neighbors), `"decisions"` (full decision records; default returns titles only), `"skeleton"` (file targets only; the file with bodies elided: every signature, imports, and the bodies of the most central symbols, token-budgeted; typically ~15% of the full file's tokens), `"health"` (code-health score and biomarkers), `"doc_drift"` (the documents that name this file, and whether those documents carry drift of their own). An empty `callers`, `callees` or `used_by` list sits beside a `*_basis` object: the language, how many call edges the index resolved for it, the share of those that are guesses, and a note that unbound call sites are not counted, so an empty list means no resolved edge, not proof of none |
 | `compact` | boolean | No | Default `true`. Set `false` for full structure block and importer list. |
 | `repo` | string | No | *(workspace only)* Target repo alias, or `"all"` |
 
@@ -351,6 +351,7 @@ get_context(targets=["src/auth/middleware.ts"])
 get_context(targets=["middleware", "api/routes", "payments"], include=["callers", "metrics"])
 get_context(targets=["src/auth"], compact=false, include=["community"])
 get_context(targets=["src/big_module.py"], include=["skeleton"])
+get_context(targets=["src/auth/service.py"], include=["doc_drift"])
 ```
 
 **Skeletons:** with `include=["skeleton"]`, file targets gain a structure-level
@@ -360,6 +361,26 @@ ranked by graph centrality / hotspot / query match. Elision markers carry
 1-indexed line ranges so you can range-`Read` anything back. For
 structure-level questions ("what's in this file", "which function handles X")
 this replaces a full file read at a fraction of the cost.
+
+**Documentation drift, in reverse:** with `include=["doc_drift"]`, a file target
+gains the documents that name it. The drift detector files a finding against the
+*document*, so this is the only direction that answers "what documentation would
+my change invalidate". Two separate claims ride in the block and must not be
+merged: `references` lists documents that name this file and still resolve to
+it, while `documents_with_drift` says a listed document carries some assertion
+that no longer holds --- anywhere in it, not necessarily about this file.
+`references_basis` states both limits, and is emitted on an empty answer too,
+since a reference the detector cannot resolve is not listed. Documents dropped
+by the repo's exclude rules are counted in `references_excluded` rather than
+silently missing.
+
+An answer the store cannot support is a refusal, not an empty list, because "no
+document mentions this file" is a far stronger claim than "no drift findings".
+`{"unavailable": "not_computed"}` means the table exists but the pass has never
+run, which happens between an upgrade and the first update that does any work;
+`"index_predates_doc_drift"` means the index is older than the table; and
+`"drift_read_failed"` means the read failed for some other reason, where
+reindexing is not the fix.
 
 ---
 

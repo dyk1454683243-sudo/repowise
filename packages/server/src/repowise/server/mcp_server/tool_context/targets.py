@@ -47,6 +47,7 @@ from repowise.server.mcp_server._helpers import (
 from repowise.server.mcp_server._references import path_identity, symbol_identity
 from repowise.server.mcp_server._symbol_lookup import resolve_symbol_rows
 from repowise.server.mcp_server.tool_context.enrichment import (
+    _DOC_DRIFT_PATH,
     _resolve_call_graph,
     _resolve_community,
     _resolve_health,
@@ -1204,6 +1205,13 @@ async def _resolve_one_target(
     # --- Code health (Phase 2) ---
     if include and "health" in include:
         await _resolve_health(session, repository, target, target_type, result_data)
+
+    # --- Documents naming this file (doc-drift reverse view) ---
+    # Only the path is recorded here. The read itself is one batched pass over
+    # every target, after the gather: see ``attach_doc_references``, which
+    # explains why a savepoint per target cannot work on a shared session.
+    if include and "doc_drift" in include:
+        result_data[_DOC_DRIFT_PATH] = file_path_for_git
 
     # --- Skeleton (distill) — opt-in only, see the module note ---
     if want_skeleton:

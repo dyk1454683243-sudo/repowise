@@ -1129,15 +1129,15 @@ async def _persist_full_update_async(
                     _skip("Dead-code persist", exc)
 
             # Scoped to the documents the pass actually read, so one this run
-            # could not open keeps its findings.
+            # could not open keeps its rows in both drift tables.
             if doc_drift_report is not None:
                 try:
                     from repowise.core.persistence.crud import (
-                        replace_doc_drift_findings_guarded,
+                        replace_doc_drift_guarded,
                     )
 
                     with timed(timings, "persist.doc_drift"):
-                        await replace_doc_drift_findings_guarded(
+                        await replace_doc_drift_guarded(
                             session, repo_id, doc_drift_report
                         )
                 except Exception as exc:

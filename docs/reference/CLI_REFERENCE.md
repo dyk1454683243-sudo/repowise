@@ -578,7 +578,7 @@ call.
 
 | Flag | Description |
 |------|-------------|
-| `--include` | Opt-in block, repeatable: `full_doc`, `ownership`, `last_change`, `callers`, `callees`, `metrics`, `community`, `decisions`, `skeleton` |
+| `--include` | Opt-in block, repeatable: `full_doc`, `ownership`, `last_change`, `callers`, `callees`, `metrics`, `community`, `decisions`, `health`, `skeleton`, `doc_drift` |
 | `--no-compact` | Add structure, imports and docstrings to each card |
 
 ```bash

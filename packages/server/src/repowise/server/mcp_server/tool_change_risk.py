@@ -53,6 +53,7 @@ from repowise.server.mcp_server._helpers import (
     _resolve_repo_context,
     _unsupported_repo_all,
     attach_ignored_arguments,
+    is_missing_table,
     resolve_enum_argument,
 )
 from repowise.server.mcp_server._meta import build_meta as _build_meta
@@ -875,7 +876,7 @@ async def _read_prior_fixes(ctx: Any, changed: dict[str, set[int]]) -> PriorFixI
         # An index built before fix events existed has no table to read. That is
         # silence, not an error the caller should have to handle -- but a locked
         # or unreadable database is a real failure and falls through below.
-        if _is_missing_table(exc):
+        if is_missing_table(exc):
             return unsupported_prior_fixes("this index predates the bug-fix record")
         return unavailable_prior_fixes(_read_failure(exc))
     except SQLAlchemyError as exc:
@@ -904,25 +905,6 @@ def _read_failure(exc: SQLAlchemyError) -> str:
     """
     log.warning("prior_fixes_read_failed", error=str(exc))
     return f"the fix record could not be read ({type(exc).__name__})"
-
-
-def _is_missing_table(exc: OperationalError) -> bool:
-    """Whether *exc* is "that table is not there" rather than a real failure.
-
-    Backend-specific wording, so this is a substring check and not a code. It
-    fails toward ``unavailable``: mistaking a missing table for a failure costs
-    a visible block that should have been silent, while the reverse would let a
-    genuine failure render as a clean bill.
-
-    Every clause is table-scoped for that reason. Postgres says "does not
-    exist" for a missing column, database, function or role too, and each of
-    those is real schema drift or misconfiguration -- swallowing them here
-    would rebuild the exact silence this block exists to break.
-    """
-    text = str(getattr(exc, "orig", "") or exc).lower()
-    if "no such table" in text or "undefined table" in text:
-        return True
-    return "does not exist" in text and ("relation" in text or "table" in text)
 
 
 async def _independent_changes_block(

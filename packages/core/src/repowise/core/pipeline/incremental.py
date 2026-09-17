@@ -1938,11 +1938,11 @@ async def persist_incremental_index(
             if doc_drift_report is not None:
                 try:
                     from repowise.core.persistence.crud import (
-                        replace_doc_drift_findings_guarded,
+                        replace_doc_drift_guarded,
                     )
 
                     with timed(timings, "persist.doc_drift"):
-                        await replace_doc_drift_findings_guarded(
+                        await replace_doc_drift_guarded(
                             session, repo_id, doc_drift_report
                         )
                 except Exception as exc:

@@ -71,6 +71,30 @@ DETECTION_BASIS: str = (
 )
 
 
+#: :data:`DETECTION_BASIS`'s job for the reverse view, which makes a weaker
+#: claim: a row says a document names a file that exists, not that it explains
+#: it. Separate sentences, because the finding one applied to a reference count
+#: describes a number nobody took.
+REFERENCE_BASIS: str = (
+    "Lists documents that name this file and still resolve to it. It does not "
+    "claim they describe it, or that their prose is current. References this "
+    "detector cannot resolve are not listed, so absence is not proof that no "
+    "document mentions the file. A document reported as carrying drift has "
+    "some assertion that no longer holds, which need not be about this file."
+)
+
+
+#: Why a drift surface could not answer. Shared because a client keys on these
+#: strings, and a literal in two packages is how one gets renamed alone.
+#: ``NO_TABLE`` is an index older than the table; ``NOT_COMPUTED`` is a table
+#: that exists and was never filled, which must not render as a clean tree;
+#: ``READ_FAILED`` is anything else, since "your index is old" is wrong advice
+#: for a transient failure.
+UNAVAILABLE_NO_TABLE: str = "index_predates_doc_drift"
+UNAVAILABLE_NOT_COMPUTED: str = "not_computed"
+UNAVAILABLE_READ_FAILED: str = "drift_read_failed"
+
+
 #: Default ``--min-confidence`` cutoff. Matches the lowest shipping origin's
 #: tier so nothing is hidden by default; a caller that wants only the
 #: near-certain findings raises it to ``HIGH_CONFIDENCE_THRESHOLD``.

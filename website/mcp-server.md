@@ -247,7 +247,7 @@ Returns rich context for one or more files, modules, or symbols: documentation, 
 
 **Parameters:**
 - `targets` (list of strings) — file paths, module names, or symbol names
-- `include` (optional) — subset of `["docs", "ownership", "last_change", "decisions", "freshness"]`
+- `include` (optional) — opt-in blocks such as `"ownership"`, `"last_change"`, `"decisions"`, `"callers"`, `"metrics"`, `"skeleton"`, `"health"`, and `"doc_drift"` (the documents that name this file)
 - `compact` (optional, default `True`) — when `True`, drops the `structure` block, the `imported_by` list, and per-symbol docstrings/end-line fields to keep the response under ~10K characters. Pass `compact=False` to receive the full payload, e.g. when you specifically need the import-graph dependents or every symbol docstring on a dense file.
 
 **When to use:** Before reading or editing any file. Faster and richer than reading the raw source.

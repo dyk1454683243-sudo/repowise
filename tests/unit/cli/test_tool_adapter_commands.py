@@ -368,6 +368,26 @@ def test_context_projection_keeps_every_include_block():
     assert card["metrics"] == {"pagerank": 0.4}
 
 
+def test_cli_include_choices_match_the_tools_own_blocks():
+    """The CLI keeps its own copy of the block names, so pin the two together.
+
+    ``click.Choice`` is built at import time and the tool lives in the server
+    package, which the command imports lazily to keep CLI startup cheap --- so
+    the names are duplicated on purpose. Without this, a block added to the
+    tool is simply unreachable from the terminal, rejected by the parser with
+    a usage error naming every block but the new one. ``docs`` and
+    ``freshness`` are excluded because they are always returned, so offering
+    them as choices would advertise a flag that does nothing.
+    """
+    from repowise.cli.commands import context_cmd
+    from repowise.server.mcp_server.tool_context import context as tool_context
+
+    assert set(context_cmd._INCLUDE_BLOCKS) == set(tool_context._INCLUDE_BLOCKS) - {
+        "docs",
+        "freshness",
+    }
+
+
 def test_context_projection_keeps_a_tombstones_redirect():
     """The successor path is the whole point of a tombstone card."""
     payload = {

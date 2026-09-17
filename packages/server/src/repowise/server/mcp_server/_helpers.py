@@ -682,6 +682,25 @@ def is_excluded(path: str | None, spec: Any) -> bool:
     return _core_is_excluded(path, spec)
 
 
+def is_missing_table(exc: Exception) -> bool:
+    """Whether *exc* is "that table is not there" rather than a real failure.
+
+    Backend-specific wording, so this is a substring check and not a code. It
+    fails toward ``unavailable``: mistaking a missing table for a failure costs
+    a visible block that should have been silent, while the reverse would let a
+    genuine failure render as a clean bill.
+
+    Every clause is table-scoped for that reason. Postgres says "does not
+    exist" for a missing column, database, function or role too, and each of
+    those is real schema drift or misconfiguration -- swallowing them here
+    would rebuild the exact silence this block exists to break.
+    """
+    text = str(getattr(exc, "orig", "") or exc).lower()
+    if "no such table" in text or "undefined table" in text:
+        return True
+    return "does not exist" in text and ("relation" in text or "table" in text)
+
+
 def filter_rows_by_attr(rows: list, attr: str, spec: Any) -> list:
     """Shape A: drop ORM rows whose ``attr`` path is excluded."""
     if not spec:

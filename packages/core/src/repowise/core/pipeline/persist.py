@@ -1069,6 +1069,7 @@ async def prune_deleted_file_rows(
     from repowise.core.persistence.models import (
         DeadCodeFinding,
         DocDriftFinding,
+        DocDriftReference,
         GitMetadata,
         GraphEdge,
         GraphMetric,
@@ -1170,6 +1171,12 @@ async def prune_deleted_file_rows(
     # function, so drift rows for a document deleted there wait for a reindex,
     # as dead-code and health rows already do.
     await _prune_table(DocDriftFinding, DocDriftFinding.file_path, "doc_drift_findings")
+    # On the document only. A reference to a deleted *target* is drift, not a
+    # dead row: the next pass re-resolves it into a finding, and pruning by
+    # target here would delete the evidence before anything reported it.
+    await _prune_table(
+        DocDriftReference, DocDriftReference.document_path, "doc_drift_references"
+    )
     await _prune_table(HealthFileMetric, HealthFileMetric.file_path, "health_file_metrics")
     await _prune_table(HealthFinding, HealthFinding.file_path, "health_findings")
     # git_metadata is keyed off the git indexer on a full run, but an
@@ -1916,7 +1923,7 @@ async def persist_analysis(result: Any, session: Any, repo_id: str) -> None:
     from repowise.core.persistence.crud import (
         bulk_upsert_decisions,
         recompute_decision_staleness,
-        replace_doc_drift_findings_guarded,
+        replace_doc_drift_guarded,
         save_coverage_files,
         save_dead_code_findings,
         upsert_git_function_blame_bulk,
@@ -1926,16 +1933,17 @@ async def persist_analysis(result: Any, session: Any, repo_id: str) -> None:
     if result.dead_code_report and result.dead_code_report.findings:
         await save_dead_code_findings(session, repo_id, result.dead_code_report.findings)
 
-    # ---- Documentation drift findings ---------------------------------------
-    # Written even when the finding list is empty, unlike dead code above: a
-    # run that fixed the last drifted reference must clear the rows, and a
-    # guard on ``.findings`` would leave the old ones standing as though the
-    # documents were still wrong. ``authoritative_paths`` is None on a full
-    # run, so the replace is repo-wide.
+    # ---- Documentation drift: findings and resolved references --------------
+    # Both tables, one savepoint, one run. Written even when the finding list
+    # is empty, unlike dead code above: a run that fixed the last drifted
+    # reference must clear the rows, and a guard on ``.findings`` would leave
+    # the old ones standing as though the documents were still wrong.
+    # ``authoritative_paths`` is None on a full run, so the replace is
+    # repo-wide.
     drift = getattr(result, "doc_drift_report", None)
     if drift is not None:
         try:
-            await replace_doc_drift_findings_guarded(session, repo_id, drift)
+            await replace_doc_drift_guarded(session, repo_id, drift)
         except Exception as exc:
             logger.warning("doc_drift_persist_skipped", error=str(exc))
 
