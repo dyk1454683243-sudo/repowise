@@ -1269,6 +1269,26 @@ class DecisionExtractor:
 
         return round(changed / len(affected_files), 3)
 
+    @staticmethod
+    def last_code_change(
+        affected_files: list[str],
+        git_meta_map: dict[str, dict],
+    ) -> datetime | None:
+        """When the code a decision governs last moved, or None.
+
+        Reduces the same inputs :meth:`compute_staleness` reads: that counts
+        how many files moved since the record was born, this reports when the
+        most recent of them moved. None where the question cannot be answered,
+        meaning no scope or no git metadata for anything the record names.
+        """
+        dates: list[datetime] = []
+        for file_path in affected_files:
+            meta = git_meta_map.get(file_path)
+            last_commit = meta.get("last_commit_at") if meta else None
+            if last_commit:
+                dates.append(_as_aware_utc(_coerce_dt(last_commit)))
+        return max(dates) if dates else None
+
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------

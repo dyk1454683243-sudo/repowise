@@ -1536,7 +1536,9 @@ async def recompute_decision_staleness(
 ) -> int:
     """Recompute staleness_score for all active decisions. Returns update count.
 
-    Also re-derives ``affected_modules_json`` from the files each record names.
+    Also fills ``last_code_change`` from the same per-file dates the score is
+    counted from, and re-derives ``affected_modules_json`` from the files each
+    record names.
     The two belong in one pass because they are one repair: a record's module
     linkage used to be the first path segment, which in a ``packages/`` layout
     made almost every record claim ``packages`` or ``tests``, and the rows that
@@ -1573,16 +1575,35 @@ async def recompute_decision_staleness(
 
     now = _now_utc()
     updated = 0
+    dated = 0
+    # Function-local, like every other analysis import here: the persistence
+    # layer cannot depend on analysis at module scope.
+    from repowise.core.analysis.decisions.extractor import (
+        DecisionExtractor,
+        _as_aware_utc,
+    )
+
     for dec in decisions:
         affected = affected_by_id.get(dec.id)
         if not affected:
             continue
+
+        # Before the conventions skip below: a date is a fact about the code,
+        # not a score, so it is filled for every scoped record.
+        last_change = DecisionExtractor.last_code_change(affected, git_meta_map)
+        stored = dec.last_code_change
+        # SQLite drops tzinfo, so an aware value would differ from the naive
+        # one it just wrote and rewrite ``updated_at`` on every run.
+        if last_change != (_as_aware_utc(stored) if stored else None):
+            dec.last_code_change = last_change
+            dec.updated_at = now
+            dated += 1
+
         # The source writes its own conformance share, and a git-diff score
-        # would overwrite it. The module backfill above still applies.
+        # would overwrite it. Only the score is skipped; the repairs above
+        # still apply.
         if dec.source == "conventions":
             continue
-
-        from repowise.core.analysis.decision_extractor import DecisionExtractor
 
         new_score = DecisionExtractor.compute_staleness(
             dec.created_at,
@@ -1594,11 +1615,11 @@ async def recompute_decision_staleness(
             dec.updated_at = now
             updated += 1
 
-    if updated or modules_updated:
+    if updated or modules_updated or dated:
         await session.flush()
     # Deliberately the staleness count alone. The callers print this as
-    # "N decisions rescored"; folding a silent module repair into it would
-    # report a rescore that did not happen.
+    # "N decisions rescored"; folding the module repair or the date fill into
+    # it would report a rescore that did not happen.
     return updated
 
 
